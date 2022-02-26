@@ -24,6 +24,8 @@
 
     function fillTunerHostInfo(view, info) {
 
+        var providerOptions = JSON.parse(info.ProviderOptions || '{}');
+
         view.querySelector('.txtFriendlyName').value = info.FriendlyName || '';
     }
 

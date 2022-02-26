@@ -486,7 +486,7 @@ namespace VirtualTVExample
         public override Task OnSaved(TunerHostInfo tuner, CancellationToken cancellationToken)
         {
             // reset data
-            // plugin developers could refine this a little and perhaps make selective changes rather than purging the whole thing
+            // plugin developers could refine this a little and perhaps make selective changes rather than resetting the whole schedule after any config change
             ResetTunerData(tuner);
 
             return base.OnSaved(tuner, cancellationToken);
