@@ -55,7 +55,15 @@ namespace VirtualTVExample
 
         public override string SetupUrl => Plugin.GetPluginPageUrl("virtualtvexample");
 
-        public override bool SupportsGuideData => true;
+        public override bool SupportsGuideData(TunerHostInfo tuner)
+        {
+            return true;
+        }
+
+        public override bool SupportsRemappingGuideData(TunerHostInfo tuner)
+        {
+            return false;
+        }
 
         protected override Task<List<ChannelInfo>> GetChannelsInternal(TunerHostInfo tuner, CancellationToken cancellationToken)
         {
@@ -66,7 +74,7 @@ namespace VirtualTVExample
             // this could be some kind of dynamic list based on provider options
             list.Add(new ChannelInfo
             {
-                Id = CreateEmbyChannelId("favoritemovies"),
+                Id = CreateEmbyChannelId(tuner, "favoritemovies"),
                 Name = "Favorite Movies",
                 TunerHostId = tuner.Id,
                 ChannelType = ChannelType.TV
@@ -74,7 +82,7 @@ namespace VirtualTVExample
 
             list.Add(new ChannelInfo
             {
-                Id = CreateEmbyChannelId("favoriteshows"),
+                Id = CreateEmbyChannelId(tuner, "favoriteshows"),
                 Name = "Favorite Shows",
                 TunerHostId = tuner.Id,
                 ChannelType = ChannelType.TV
@@ -82,7 +90,7 @@ namespace VirtualTVExample
 
             list.Add(new ChannelInfo
             {
-                Id = CreateEmbyChannelId("favoritesongs"),
+                Id = CreateEmbyChannelId(tuner, "favoritesongs"),
                 Name = "Favorite Songs",
                 TunerHostId = tuner.Id,
                 ChannelType = ChannelType.Radio
@@ -108,9 +116,9 @@ namespace VirtualTVExample
             throw new NotImplementedException();
         }
 
-        protected override Task<List<MediaSourceInfo>> GetChannelStreamMediaSources(BaseItem dbChannnel, TunerHostInfo tuner, ChannelInfo providerChannel, CancellationToken cancellationToken)
+        protected override Task<List<MediaSourceInfo>> GetChannelStreamMediaSources(TunerHostInfo tuner, BaseItem dbChannnel, ChannelInfo providerChannel, CancellationToken cancellationToken)
         {
-            var tunerChannelId = GetTunerChannelIdFromEmbyChannelId(providerChannel.Id);
+            var tunerChannelId = GetTunerChannelIdFromEmbyChannelId(tuner, providerChannel.Id);
             var options = GetProviderOptions<ProviderTunerOptions>(tuner);
 
             // get the program that is currently airing
@@ -440,7 +448,7 @@ namespace VirtualTVExample
         {
             // TODO: Fill in data querying algorithms below based on whatever channel it is
 
-            var tunerChannelId = GetTunerChannelIdFromEmbyChannelId(providerChannelId);
+            var tunerChannelId = GetTunerChannelIdFromEmbyChannelId(tuner, providerChannelId);
 
             var query = new InternalItemsQuery(user)
             {
@@ -483,13 +491,13 @@ namespace VirtualTVExample
             }
         }
 
-        public override Task OnSaved(TunerHostInfo tuner, CancellationToken cancellationToken)
+        public override Task OnSaved(TunerHostInfo tuner, bool isNew, CancellationToken cancellationToken)
         {
             // reset data
             // plugin developers could refine this a little and perhaps make selective changes rather than resetting the whole schedule after any config change
             ResetTunerData(tuner);
 
-            return base.OnSaved(tuner, cancellationToken);
+            return base.OnSaved(tuner, isNew, cancellationToken);
         }
 
         public override Task OnDeleted(TunerHostInfo tuner, CancellationToken cancellationToken)
