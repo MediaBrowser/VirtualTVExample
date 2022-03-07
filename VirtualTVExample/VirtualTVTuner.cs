@@ -41,8 +41,8 @@ namespace VirtualTVExample
 
         private int GuideSchduleDays = 14;
 
-        public VirtualTVTuner(IServerConfigurationManager config, ILogger logger, IJsonSerializer jsonSerializer, IMediaEncoder mediaEncoder, IFileSystem fileSystem, ILibraryManager libraryManager, IUserManager userManager, IMediaSourceManager mediaSourceManager)
-            : base(config, logger, jsonSerializer, mediaEncoder, fileSystem)
+        public VirtualTVTuner(ILibraryManager libraryManager, IUserManager userManager, IMediaSourceManager mediaSourceManager, IServerApplicationHost appHost)
+            : base(appHost)
         {
             this.libraryManager = libraryManager;
             this.userManager = userManager;
@@ -108,17 +108,18 @@ namespace VirtualTVExample
             return info;
         }
 
-        protected override Task<ILiveStream> GetChannelStream(TunerHostInfo tuner, ChannelInfo providerChannel, string streamId, List<ILiveStream> currentLiveStreams, CancellationToken cancellationToken)
+        protected override Task<ILiveStream> GetChannelStream(TunerHostInfo tuner, BaseItem dbChannnel, ChannelInfo tunerChannel, string mediaSourceId, CancellationToken cancellationToken)
         {
             // we're sending media sources from library content, therefore we'll never get in here because there's no live stream to open
             // in theory we could get here if an item in the library has a playback media source that is a live stream. in this case we'd have to call mediaSourceManager to open it
             // we'll cross that bridge if we get to it
-            throw new NotImplementedException();
+            //throw new NotImplementedException();
+            return base.GetChannelStream(tuner, dbChannnel, tunerChannel, mediaSourceId, cancellationToken);
         }
 
-        protected override Task<List<MediaSourceInfo>> GetChannelStreamMediaSources(TunerHostInfo tuner, BaseItem dbChannnel, ChannelInfo providerChannel, CancellationToken cancellationToken)
+        protected override Task<List<MediaSourceInfo>> GetChannelStreamMediaSources(TunerHostInfo tuner, BaseItem dbChannnel, ChannelInfo tunerChannel, CancellationToken cancellationToken)
         {
-            var tunerChannelId = GetTunerChannelIdFromEmbyChannelId(tuner, providerChannel.Id);
+            var tunerChannelId = GetTunerChannelIdFromEmbyChannelId(tuner, tunerChannel.Id);
             var options = GetProviderOptions<ProviderTunerOptions>(tuner);
 
             // get the program that is currently airing
@@ -150,12 +151,12 @@ namespace VirtualTVExample
             return mediaSourceManager.GetPlayackMediaSources(item, null, false, false, cancellationToken);
         }
 
-        public override Task<List<ProgramInfo>> GetProgramsAsync(TunerHostInfo tuner, string providerChannelId, DateTimeOffset startDateUtc, DateTimeOffset endDateUtc, CancellationToken cancellationToken)
+        public override Task<List<ProgramInfo>> GetProgramsAsync(TunerHostInfo tuner, string tunerChannelId, DateTimeOffset startDateUtc, DateTimeOffset endDateUtc, CancellationToken cancellationToken)
         {
             var list = new List<ProgramInfo>();
 
             // ensure we have a schedule for the channel saved so that running repeated guide refreshes will produce consistent results
-            var schedule = EnsureChannelSchedule(tuner, providerChannelId);
+            var schedule = EnsureChannelSchedule(tuner, tunerChannelId);
 
             foreach (var scheduleItem in schedule.Programs)
             {
@@ -187,7 +188,7 @@ namespace VirtualTVExample
 
                 var program = ConvertToProgramInfo(item);
 
-                program.ChannelId = providerChannelId;
+                program.ChannelId = tunerChannelId;
                 program.StartDate = scheduleItem.StartDate;
                 program.EndDate = scheduleItem.EndDate;
 
@@ -293,21 +294,21 @@ namespace VirtualTVExample
             return Path.Combine(Config.ApplicationPaths.CachePath, "livetv", Type, tunerId);
         }
 
-        private string GetChannelDataPath(string tunerId, string providerChannelId)
+        private string GetChannelDataPath(string tunerId, string tunerChannelId)
         {
-            return Path.Combine(GetTunerDataPath(tunerId), providerChannelId);
+            return Path.Combine(GetTunerDataPath(tunerId), tunerChannelId);
         }
 
-        private ChannelSchedule EnsureChannelSchedule(TunerHostInfo tuner, string providerChannelId)
+        private ChannelSchedule EnsureChannelSchedule(TunerHostInfo tuner, string tunerChannelId)
         {
-            var schedule = GetSavedChannelSchedule(tuner, providerChannelId);
+            var schedule = GetSavedChannelSchedule(tuner, tunerChannelId);
 
             var saveSchedule = false;
 
             // create schedule if first time
             if (schedule == null)
             {
-                schedule = CreateChannelSchedule(tuner, providerChannelId);
+                schedule = CreateChannelSchedule(tuner, tunerChannelId);
 
                 saveSchedule = schedule.Programs.Count > 0;
             }
@@ -318,22 +319,22 @@ namespace VirtualTVExample
             if ((DateTime.UtcNow - schedule.LastUpdated) >= TimeSpan.FromHours(6))
             {
                 schedule.RemoveOldPrograms();
-                AddNewItemsToSchedule(tuner, providerChannelId, schedule);
+                AddNewItemsToSchedule(tuner, tunerChannelId, schedule);
                 saveSchedule = true;
             }
 
             if (saveSchedule)
             {
                 schedule.LastUpdated = DateTimeOffset.UtcNow;
-                SaveChannelSchedule(tuner, providerChannelId, schedule);
+                SaveChannelSchedule(tuner, tunerChannelId, schedule);
             }
 
             return schedule;
         }
 
-        private void SaveChannelSchedule(TunerHostInfo tuner, string providerChannelId, ChannelSchedule channelSchedule)
+        private void SaveChannelSchedule(TunerHostInfo tuner, string tunerChannelId, ChannelSchedule channelSchedule)
         {
-            var path = GetChannelDataPath(tuner.Id, providerChannelId);
+            var path = GetChannelDataPath(tuner.Id, tunerChannelId);
 
             try
             {
@@ -347,9 +348,9 @@ namespace VirtualTVExample
             }
         }
 
-        private ChannelSchedule GetSavedChannelSchedule(TunerHostInfo tuner, string providerChannelId)
+        private ChannelSchedule GetSavedChannelSchedule(TunerHostInfo tuner, string tunerChannelId)
         {
-            var path = GetChannelDataPath(tuner.Id, providerChannelId);
+            var path = GetChannelDataPath(tuner.Id, tunerChannelId);
 
             try
             {
@@ -371,7 +372,7 @@ namespace VirtualTVExample
             return null;
         }
 
-        private void AddNewItemsToSchedule(TunerHostInfo tuner, string providerChannelId, ChannelSchedule channelSchedule)
+        private void AddNewItemsToSchedule(TunerHostInfo tuner, string tunerChannelId, ChannelSchedule channelSchedule)
         {
             var scheduleStartDate = channelSchedule.Programs.FirstOrDefault()?.StartDate ?? DateTimeOffset.UtcNow;
             var scheduleEndDate = scheduleStartDate.AddDays(GuideSchduleDays);
@@ -389,10 +390,10 @@ namespace VirtualTVExample
             // TODO: add new data to the schedule, not exceeding scheduleEndDate
             // you'll need an algorithm to add new items to the schedule, hopefully without too much duplication of what's already there
 
-            var query = CreateItemsQuery(tuner, providerChannelId, user);
+            var query = CreateItemsQuery(tuner, tunerChannelId, user);
         }
 
-        private ChannelSchedule CreateChannelSchedule(TunerHostInfo tuner, string providerChannelId)
+        private ChannelSchedule CreateChannelSchedule(TunerHostInfo tuner, string tunerChannelId)
         {
             var options = GetProviderOptions<ProviderTunerOptions>(tuner);
 
@@ -413,7 +414,7 @@ namespace VirtualTVExample
 
             var endDateUtc = startDateUtc.AddDays(GuideSchduleDays);
 
-            var query = CreateItemsQuery(tuner, providerChannelId, user);
+            var query = CreateItemsQuery(tuner, tunerChannelId, user);
 
             var items = libraryManager.GetItemList(query);
 
@@ -444,11 +445,11 @@ namespace VirtualTVExample
             return schedule;
         }
 
-        private InternalItemsQuery CreateItemsQuery(TunerHostInfo tuner, string providerChannelId, User user)
+        private InternalItemsQuery CreateItemsQuery(TunerHostInfo tuner, string tunerChannelId, User user)
         {
             // TODO: Fill in data querying algorithms below based on whatever channel it is
 
-            var tunerChannelId = GetTunerChannelIdFromEmbyChannelId(tuner, providerChannelId);
+            var virtualTvChannelId = GetTunerChannelIdFromEmbyChannelId(tuner, tunerChannelId);
 
             var query = new InternalItemsQuery(user)
             {
@@ -456,15 +457,15 @@ namespace VirtualTVExample
                 IsFavorite = true
             };
 
-            if (string.Equals(tunerChannelId, "favoritemovies", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(virtualTvChannelId, "favoritemovies", StringComparison.OrdinalIgnoreCase))
             {
                 query.IncludeItemTypes = new[] { typeof(Movie).Name };
             }
-            else if (string.Equals(tunerChannelId, "favoriteshows", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(virtualTvChannelId, "favoriteshows", StringComparison.OrdinalIgnoreCase))
             {
                 query.IncludeItemTypes = new[] { typeof(Episode).Name };
             }
-            else if (string.Equals(tunerChannelId, "favoritesongs", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(virtualTvChannelId, "favoritesongs", StringComparison.OrdinalIgnoreCase))
             {
                 query.IncludeItemTypes = new[] { typeof(Audio).Name };
             }
