@@ -151,7 +151,7 @@ namespace VirtualTVExample
             return mediaSourceManager.GetPlayackMediaSources(item, null, false, false, cancellationToken);
         }
 
-        public override Task<List<ProgramInfo>> GetProgramsAsync(TunerHostInfo tuner, string tunerChannelId, DateTimeOffset startDateUtc, DateTimeOffset endDateUtc, CancellationToken cancellationToken)
+        protected override Task<List<ProgramInfo>> GetProgramsInternal(TunerHostInfo tuner, string tunerChannelId, DateTimeOffset startDateUtc, DateTimeOffset endDateUtc, CancellationToken cancellationToken)
         {
             var list = new List<ProgramInfo>();
 
@@ -449,23 +449,21 @@ namespace VirtualTVExample
         {
             // TODO: Fill in data querying algorithms below based on whatever channel it is
 
-            var virtualTvChannelId = GetTunerChannelIdFromEmbyChannelId(tuner, tunerChannelId);
-
             var query = new InternalItemsQuery(user)
             {
                 Recursive = true,
                 IsFavorite = true
             };
 
-            if (string.Equals(virtualTvChannelId, "favoritemovies", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(tunerChannelId, "favoritemovies", StringComparison.OrdinalIgnoreCase))
             {
                 query.IncludeItemTypes = new[] { typeof(Movie).Name };
             }
-            else if (string.Equals(virtualTvChannelId, "favoriteshows", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(tunerChannelId, "favoriteshows", StringComparison.OrdinalIgnoreCase))
             {
                 query.IncludeItemTypes = new[] { typeof(Episode).Name };
             }
-            else if (string.Equals(virtualTvChannelId, "favoritesongs", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(tunerChannelId, "favoritesongs", StringComparison.OrdinalIgnoreCase))
             {
                 query.IncludeItemTypes = new[] { typeof(Audio).Name };
             }
