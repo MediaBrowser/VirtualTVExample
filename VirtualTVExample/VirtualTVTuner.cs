@@ -269,7 +269,7 @@ namespace VirtualTVExample
         {
             var image = item.GetImageInfo(ImageType.Primary, 0);
 
-            if (image != null && string.IsNullOrEmpty(info.ImagePath))
+            if (image != null && string.IsNullOrEmpty(info.ImageUrl))
             {
                 info.ImageUrl = image.Path;
             }
